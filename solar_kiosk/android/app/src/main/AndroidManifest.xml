@@ -10,6 +10,9 @@
         android:name="io.flutter.app.FlutterApplication"
         android:label="solar_kiosk"
         android:icon="@mipmap/ic_launcher">
+
+        <meta-data android:name="com.google.android.geo.API_KEY"
+               android:value="AIzaSyAhXVWeu1ZFXZBe90D4kbuYdNk4uTBAKUc"/>
         <activity
             android:name=".MainActivity"
             android:launchMode="singleTop"
