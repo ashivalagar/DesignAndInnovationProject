@@ -1,7 +1,9 @@
 #include <UTFT.h>
 #include <URTouch.h>
 //==== Creating Objects =====
-UTFT myGLCD(ILI9341_16, 38, 39, 40, 41); //Parameters should be adjusted to your Display/Schield model
+//UTFT myGLCD(CTE32_R2, 38, 39, 40, 41); //Parameters should be adjusted to your Display/Schield model
+
+UTFT myGLCD(ILI9341_16, 38, 39, 40, 41);
 URTouch myTouch(6, 5, 4, 3, 2);
 //==== Defining Variables ======
 extern uint8_t SmallFont[];
@@ -156,7 +158,7 @@ void loop()
         currentPage = '0';
         drawHomeScreen();
     }
-    Project Group : E003 if (str[0] == 'c') //rent portion; collection
+ if (str[0] == 'c') //rent portion; collection
     {
         myGLCD.clrScr();
         myGLCD.setBackColor(0, 0, 0);   // Sets the background color of the area where the text will be printed to black

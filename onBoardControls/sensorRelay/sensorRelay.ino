@@ -1,7 +1,39 @@
 #include <SPI.h>               //Serial Communication Protocol
 #include <MFRC522.h>           //RFID Reader
-#include <Servo.h>             //Servo motor
 #include <Adafruit_NeoPixel.h> //Neopixel
+#include <dht.h>               //Temp and Humidity Sensor
+#include <LiquidCrystal.h>     //LCD Display
+
+
+//----------------BMS-----------------------
+
+float voltage, current = 0.0;
+int sensorPin = A1;  
+float sensorVal = 0.0f;  
+volatile byte relayState = LOW;
+int i,b,battery_voltage =0;
+LiquidCrystal lcd(22,23,24,25,26,27);
+unsigned long bmsDelay = 0;
+
+float vout = 0.0;
+float vin = 0.0;
+float R1 = 29830.0; 
+float R2 = 7520.0; 
+
+
+//--------------Fans----------------------
+
+dht DHT;
+
+#define DHT22_PIN 2     // DHT 22  (AM2302) - what pin we're connected to
+#define REF_TEMP 35     // Reference temperature(degree C) to turn fan on
+#define REF_HUM  85     // Reference humidity(%) to turn fan on
+unsigned long fanDelay = 0;
+
+float hum;  //Stores humidity value
+float temp; //Stores temperature value
+
+//----------------------------------------
 
 #ifdef __AVR__
 #include <avr/power.h> //Reduce power consumption by toggling peripherals on and off
@@ -44,10 +76,12 @@ const int buzzPin = A15;
 //boolean alarmActive = false;
 const String targetUID = "70 EC 7A A6";
 //String targetUID[1]={"70 EC 7A A6", "70 17 7C A6"}
-int servoPin1 = 40;
-int servoPin2 = 41;
-Servo servo;  // create servo object to control a servo
-int pos = 90; // default servo position in degrees
+
+/* Pin out for Relay */
+const int compartmentOne = 10;
+const int compartmentTwo = 11;
+const int fanSwitch = 12;
+const int bmsRelay = 13;
 
 /*=======================================================================*/
 
@@ -86,22 +120,18 @@ void setup()
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
 
-  // Initialize servo:
-  servo.attach(servoPin1);
-  servo.attach(servoPin2);
-  //servo.write(); // Turn SG90 servo to X degrees
-  // Ensure alarm is set to off to prevent premature activation:
-  //alarmActive = false;
+  pinMode(compartmentOne, OUTPUT);
+  digitalWrite(compartmentOne, HIGH);
+  pinMode(compartmentTwo, OUTPUT);
+  digitalWrite(compartmentTwo, HIGH);
+  pinMode(fanSwitch, OUTPUT);
+  digitalWrite(fanSwitch, HIGH);
+  pinMode(bmsRelay, OUTPUT);
+  digitalWrite(bmsRelay, HIGH);
+
+  lcd.begin(16,2);
 
   digitalWrite(actLedPin, LOW);
-
-  //Reset Servo Position
-  for (pos = 180; pos--;) //move the servo from 0 degrees to 180 degrees
-  {
-    servo.write(pos); // tell servo to go to position in variable 'pos'
-    delay(5);         // increase 1 deg per 10millisecond
-  }
-  servo.detach();
 
 // This is for Trinket 5V 16MHz, you can remove these three lines if you are not using a Trinket
 #if defined(__AVR_ATtiny85__)
@@ -144,6 +174,7 @@ void loop()
   if (str[0] == 'o') // if mega2(this board) receive 'o' after pressing the 'RENT' button on touchscreen(which send 'o' to mega2)
   {
     runSensor(); //on the ultrasonic Sensor to check stock for renting
+//  Serial1.write('a');
   }
 
   if (str[0] == 'r') // return; if mega2 received 'r' after pressing the 'RETURN' button on touchscreen(which send 'f' to mega2)
@@ -162,6 +193,10 @@ void loop()
     str[j] = (char)0;
   }
 
+
+  coolingSystem();
+  bms();
+  
   pixels.clear();
   lightDetection();
   for (int i = 0; i < intensity; i++)
@@ -199,9 +234,20 @@ void runSensor() //under void loop
   noTone(buzzPin);
   digitalWrite(ledPin, LOW);
   //Measure the distance with Ultrasonic Sensor and print the distance
-  mDist();
-  // Check if there is any stock(powerbank):
-  checkStock(dist_cm);
+  // Check if there is any stock(powerbank): 
+  
+  //ShivAlagar
+
+  
+  Serial1.write('a');
+  state = true;
+  while (state)
+  {
+    readForCard();
+  }
+
+
+  
   // Check if alarm has been triggered:
   // checkAlarm(dist_cm);
   Serial.println("first run complete");
@@ -217,20 +263,8 @@ void checkStock(long dist_cm) //subpart of runSensor(); rent portion
 {
   if (dist_dist_cm < 8)
   //if (dist_dist_cm < 3) //less than 3dist_cm; TRUE
-  {
-    Serial.println("Available"); //there is powerbank to rent
-    //digitalWrite(ledPin, HIGH); //LED light up to show there is powerbank
-    Serial1.write('a'); // send 'a' to touchscreen to display "Scan card"; a stands for available
-    state = true;
-  }
-  else //more than dist_cm; FALSE
-  {
-    Serial.println("No Stock");
-    //digitalWrite(ledPin, LOW);
-    Serial1.write('n'); // send 'n' to touchscreen to display "Out of Stock"; n stands for no stock
-    delay(500);
-    state = false;
-  }
+  Serial1.write('a');
+  state = true;
   while (state)
   {
     readForCard();
@@ -267,8 +301,6 @@ void readForCard() //under void loop
   // Use DumpInfo (File > Examples > MFRC522 > DumpInfo) to get this infomation
   if (content.substring(1) == targetUID)
   {
-    servo.attach(servoPin1);
-    servo.attach(servoPin2);
     //digitalWrite(actLedPin, HIGH); //on led
     // Set off a short tone and an LED to signal a sucessful activation/deactivation:
     tone(buzzPin, 500); //on
@@ -279,21 +311,20 @@ void readForCard() //under void loop
     delay(50);
     noTone(buzzPin);    //off
     Serial1.write('c'); // send 'c' to touchscreen to display message
-    Project Group : E003
-                        analogWrite(RGBstrip, 255);
-    //on servo to push powerbank out of the slot
-    for (pos = 0; pos <= 180; pos++) //move the servo from 0 degrees to 180 degrees
-    {
-      servo.write(pos); // tell servo to go to position in variable 'pos'
-      delay(5);         // increase 1 deg per 10millisecond
-    }
-    for (pos = 180; pos >= 0; pos--) //move the servo from 180 degrees to 0 degrees
-    {
-      servo.write(pos); // tell servo to go to position in variable 'pos'
-      delay(5);         // increase in 1 deg per 10millisecond
-    }
-    servo.detach();
-    sensorbuzz();
+   /* Enter code for relay open compartment 
+   
+   
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   
+   
+   
+   
+   */
+   Serial1.write('f');
+   state = false;
   }
   else // Make a short tone to indicate that the alarm has failed to activate:
   {
@@ -359,28 +390,30 @@ void runReturn()
 
 void checkbank(long cm) //subpart of runReturn(); for return portion; taking
 {
-  if (dist_cm > 4)
-  //if (dist_cm < 3) //powerbank space is occupied
-  {
-    Serial.println("Occupied");
-    //digitalWrite(ledPin, LOW); //LED off when there is no available space
-    Serial1.write('t'); // send 't' to touchscreen; t stands for taken
-    //RGB led strip show RED for no available space
-    pixels.setPixelColor(7, pixels.Color(255, 0, 0));
-    pixels.show();
-    delay(1000);
-  }
-  else //there is an empty space, more than or equal to 3cm
-  {
-    Serial.println("Empty");
-    //digitalWrite(ledPin, HIGH); //LED light up to show there is slot to return
-    Serial1.write('e'); // send 'e' to touchscreen; e stands for empty
-    state = true;
-    //RGB led strip show GREEN for available space
-    pixels.setPixelColor(7, pixels.Color(0, 255, 0));
-    pixels.show();
-    delay(1000);
-  }
+//  if (dist_cm > 4)
+//  //if (dist_cm < 3) //powerbank space is occupied
+//  {
+//    Serial.println("Occupied");
+//    //digitalWrite(ledPin, LOW); //LED off when there is no available space
+//    Serial1.write('t'); // send 't' to touchscreen; t stands for taken
+//    //RGB led strip show RED for no available space
+//    pixels.setPixelColor(7, pixels.Color(255, 0, 0));
+//    pixels.show();
+//    delay(1000);
+//  }
+//  else //there is an empty space, more than or equal to 3cm
+//  {
+//    Serial.println("Empty");
+//    //digitalWrite(ledPin, HIGH); //LED light up to show there is slot to return
+//    Serial1.write('e'); // send 'e' to touchscreen; e stands for empty
+//    state = true;
+//    //RGB led strip show GREEN for available space
+//    pixels.setPixelColor(7, pixels.Color(0, 255, 0));
+//    pixels.show();
+//    delay(1000);
+//  }
+
+  Serial1.write('e');
   while (state)
   {
     CardforReturn();
@@ -440,32 +473,35 @@ void CardforReturn() //under void loop
 
 void SenReturn()
 {
-  // Reset alarm at initialization to avoid premature activation:
-  noTone(buzzPin);
-  //digitalWrite(ledPin, LOW);
-  //Check if powerbank is returned:
-  /*do {
-mDist();
-} while (dist_cm >= 3); //checking when no powerbank is detected
-laststep(dist_cm);*/
-  do
-  {
-    mDist();
-  } while (dist_cm < 4.5);
-  if (dist_cm < 8)
-  {
-    mDist();
-    delay(100);
-  }
-  else
-  {
-    SenReturn();
-  }
-  laststep(dist_cm);
-  // Delay for 50 milliseconds before looping over again
-  // This ensures that the sensor is pulsing fast enough to detect fast-moving objects
-  // but still slow enough for the RFID Reader to check if a tag/card has been presented:
-  delay(100);
+//  // Reset alarm at initialization to avoid premature activation:
+//  noTone(buzzPin);
+//  //digitalWrite(ledPin, LOW);
+//  //Check if powerbank is returned:
+//  /*do {
+//mDist();
+//} while (dist_cm >= 3); //checking when no powerbank is detected
+//laststep(dist_cm);*/
+//  do
+//  {
+//    mDist();
+//  } while (dist_cm < 4.5);
+//  if (dist_cm < 8)
+//  {
+//    mDist();
+//    delay(100);
+//  }
+//  else
+//  {
+//    SenReturn();
+//  }
+//  laststep(dist_cm);
+//  // Delay for 50 milliseconds before looping over again
+//  // This ensures that the sensor is pulsing fast enough to detect fast-moving objects
+//  // but still slow enough for the RFID Reader to check if a tag/card has been presented:
+//  delay(100);
+
+Serial.write('f');
+delay(100);
 }
 
 /* =================================================================================*/
@@ -515,4 +551,172 @@ void lightDetection()
 low light intensity at 1
 so it is from the range of 1-7 brightness indication
 */
+}
+
+void coolingSystem()
+{
+  unsigned long currentMillis = millis();
+  if (currentMillis - fanDelay > 2000) {
+    int chk = DHT.read22(DHT22_PIN);
+    //Read data and store it to variables hum and temp
+    hum = DHT.humidity;
+    temp= DHT.temperature;
+    //Print temp and humidity values to serial monitor
+    Serial.print("Humidity: ");
+    Serial.print(hum);
+    Serial.print(" %, Temp: ");
+    Serial.print(temp);
+    Serial.println(" Celsius");
+    //Control fan to turn on and off using relay
+    if(temp>=REF_TEMP||hum>=REF_HUM){
+      digitalWrite(fanSwitch, LOW);
+    }else{
+      digitalWrite(fanSwitch, HIGH);
+    }
+    fanDelay = currentMillis;
+  }
+}
+
+
+void bms()
+{
+  unsigned long currentMilli = millis();
+  if (currentMilli - bmsDelay > 1000)
+  {
+    voltage = readVoltage();
+    voltage = voltage/1000;
+     current= (voltage -2.5)/0.185;
+     lcd.setCursor(10,1);
+     lcd.print(voltage);
+     lcd.setCursor(1,1);
+     lcd.print(current);
+    if (voltage<=10.5)
+     {
+      battery_voltage = 0;
+     lcd.setCursor(12,0);
+     lcd.print(battery_voltage);
+     lcd.print("%");
+     bmsDelay = currentMilli;
+     lcd.clear();
+     }
+     else if (voltage<=11.31)
+     {
+      battery_voltage = 10;
+     lcd.setCursor(12,0);
+     lcd.print(battery_voltage);
+     lcd.print("%");
+     bmsDelay = currentMilli;
+     lcd.clear();
+     }
+      else if (voltage<=11.58)
+     {
+      battery_voltage = 20;
+     lcd.setCursor(12,0);
+     lcd.print(battery_voltage);
+     lcd.print("%");
+     bmsDelay = currentMilli;
+     lcd.clear();
+     }
+      else if (voltage<=11.75)
+     {
+      battery_voltage = 30;
+     lcd.setCursor(12,0);
+     lcd.print(battery_voltage);
+     lcd.print("%");
+     bmsDelay = currentMilli;
+     lcd.clear();
+     }
+      else if (voltage<=11.9)
+     {
+      battery_voltage = 40;
+     lcd.setCursor(12,0);
+     lcd.print(battery_voltage);
+     lcd.print("%");
+     bmsDelay = currentMilli;
+     lcd.clear();
+     }
+      else if (voltage<=12.06)
+     {
+      battery_voltage = 50;
+     lcd.setCursor(12,0);
+     lcd.print(battery_voltage);
+     lcd.print("%");
+     bmsDelay = currentMilli;
+     lcd.clear();
+     }
+      else if (voltage<=12.2)
+     {
+      battery_voltage = 60;
+     lcd.setCursor(12,0);
+     lcd.print(battery_voltage);
+     lcd.print("%");
+     bmsDelay = currentMilli;
+     lcd.clear();
+     }
+      else if (voltage<=12.32)
+     {
+      battery_voltage = 70;
+     lcd.setCursor(12,0);
+     lcd.print(battery_voltage);
+     lcd.print("%");
+     bmsDelay = currentMilli;
+     lcd.clear();
+     }
+      else if (voltage<=12.42)
+     {
+      battery_voltage = 80;
+     lcd.setCursor(12,0);
+     lcd.print(battery_voltage);
+     lcd.print("%");
+     bmsDelay = currentMilli;
+     lcd.clear();
+     }
+      else if (voltage<=12.5)
+     {
+      battery_voltage = 90;
+     lcd.setCursor(12,0);
+     lcd.print(battery_voltage);
+     lcd.print("%");
+     bmsDelay = currentMilli;
+     lcd.clear();
+     }
+     else if (voltage<=12.6)
+     {
+      battery_voltage = 100;
+     lcd.setCursor(12,0);
+     lcd.print(battery_voltage);
+     lcd.print("%");
+     bmsDelay = currentMilli;
+     lcd.clear();
+     }
+     else if (voltage>=12.6)
+     {
+      battery_voltage = 100;
+     lcd.setCursor(12,0);
+     lcd.print(battery_voltage);
+     lcd.print("%");
+     bmsDelay = currentMilli;
+     lcd.clear();
+     }
+      else if (battery_voltage<50)
+        {
+      digitalWrite(bmsRelay, LOW);
+        relayState = HIGH;
+      
+        }
+        else
+        {
+      digitalWrite(bmsRelay, HIGH);
+        relayState = LOW;
+        }
+  }
+}
+
+float readVoltage()
+{
+
+   sensorVal = analogRead(sensorPin);
+   float val0 = (sensorVal) * 5.0 / 1024.0;
+   vin = val0 * ((R1+R2)/R2); 
+   return vin;
 }
