@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:solar_kiosk/components/compartment_card.dart';
 
 class Availbility extends StatefulWidget {
   final String title;
@@ -8,64 +9,22 @@ class Availbility extends StatefulWidget {
 }
 
 class _AvailabilityState extends State<Availbility> {
+  bool rented = true;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
           title: Text(widget.title),
         ),
-        body: Center(
-            child: Container(
-          padding: EdgeInsets.only(top: 75),
-          child: Column(
-            children: <Widget>[
-              Container(
-                height: 175.0,
-                child: ButtonTheme(
-                  minWidth: 300.0,
-                  height: 100.0,
-                  child: RaisedButton(
-                    onPressed: () {},
-                    child: Text(
-                      'Compartment 1',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 24.0,
-                          fontFamily: 'Monserrat',
-                          color: Colors.white),
-                    ),
-                    color: Colors.green,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25.0)),
-                  ),
-                ),
-              ),
-              SizedBox(
-                height: 25,
-              ),
-              Container(
-                height: 175.0,
-                child: ButtonTheme(
-                  minWidth: 300.0,
-                  height: 100.0,
-                  child: RaisedButton(
-                    onPressed: () {},
-                    child: Text(
-                      'Compartment 2',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 24.0,
-                          fontFamily: 'Monserrat',
-                          color: Colors.white),
-                    ),
-                    color: Colors.red,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25.0)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        )));
+        body: Container(
+            padding: EdgeInsets.all(10.0),
+            child: ListView.builder(
+                scrollDirection: Axis.vertical,
+                itemCount: 2,
+                itemBuilder: (context, position) {
+                  position = position + 1;
+                  rented = !rented;
+                  return CompartmentCard(position.toString(), rented);
+                })));
   }
 }
