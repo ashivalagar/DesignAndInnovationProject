@@ -8,7 +8,7 @@
 //----------------BMS-----------------------
 
 float voltage, current = 0.0;
-int sensorPin = A1;  
+int sensorPin = A7;  
 float sensorVal = 0.0f;  
 volatile byte relayState = LOW;
 int i,b,battery_voltage =0;
@@ -26,8 +26,8 @@ float R2 = 7520.0;
 dht DHT;
 
 #define DHT22_PIN 2     // DHT 22  (AM2302) - what pin we're connected to
-#define REF_TEMP 35     // Reference temperature(degree C) to turn fan on
-#define REF_HUM  85     // Reference humidity(%) to turn fan on
+#define REF_TEMP 35     // Reference temperature(degree C) to turn fan on 35
+#define REF_HUM  85     // Reference humidity(%) to turn fan on 85
 unsigned long fanDelay = 0;
 
 float hum;  //Stores humidity value
@@ -41,7 +41,6 @@ float temp; //Stores temperature value
 
 #define RGBstrip A0
 #define NUMPIXELS 7
-#define sensorPin A1
 
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, RGBstrip, NEO_GRB + NEO_KHZ800);
 uint32_t yellow = pixels.Color(255, 100, 0);
@@ -173,13 +172,12 @@ void loop()
 
   if (str[0] == 'o') // if mega2(this board) receive 'o' after pressing the 'RENT' button on touchscreen(which send 'o' to mega2)
   {
-    runSensor(); //on the ultrasonic Sensor to check stock for renting
-//  Serial1.write('a');
+//    Serial1.print('a');
+    runSensor();
   }
 
   if (str[0] == 'r') // return; if mega2 received 'r' after pressing the 'RETURN' button on touchscreen(which send 'f' to mega2)
   {
-    mDist();
     runReturn(); //on the ultrasonic Sensor to check availability for return
   }
 
@@ -197,15 +195,7 @@ void loop()
   coolingSystem();
   bms();
   
-  pixels.clear();
-  lightDetection();
-  for (int i = 0; i < intensity; i++)
-  {
-    pixels.setPixelColor(i, yellow);
-    delay(1);
-  }
-
-  pixels.show();
+ 
 }
 
 /*=====================================================================================*/
@@ -265,10 +255,7 @@ void checkStock(long dist_cm) //subpart of runSensor(); rent portion
   //if (dist_dist_cm < 3) //less than 3dist_cm; TRUE
   Serial1.write('a');
   state = true;
-  while (state)
-  {
-    readForCard();
-  }
+  readForCard();
   pixels.clear();
 }
 
@@ -302,27 +289,17 @@ void readForCard() //under void loop
   if (content.substring(1) == targetUID)
   {
     //digitalWrite(actLedPin, HIGH); //on led
-    // Set off a short tone and an LED to signal a sucessful activation/deactivation:
-    tone(buzzPin, 500); //on
-    delay(50);
-    noTone(buzzPin); //off
-    delay(50);
-    tone(buzzPin, 500); //on
-    delay(50);
-    noTone(buzzPin);    //off
+    delay(100);
+    Serial.println("_-_________-_");
+    Serial.println("Correct Card");
     Serial1.write('c'); // send 'c' to touchscreen to display message
-   /* Enter code for relay open compartment 
-   
-   
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   
-   
-   
-   
-   */
+
+ 
+
+   digitalWrite(compartmentOne, LOW);
+   delay(1000);
+   digitalWrite(compartmentOne, HIGH);
+   delay(1000);
    Serial1.write('f');
    state = false;
   }
@@ -376,7 +353,6 @@ void runReturn()
   // Reset alarm at initialization to avoid premature activation:
   noTone(buzzPin);
   //digitalWrite(ledPin, LOW);
-  mDist();
   // Check if any space is occupied:
   checkbank(dist_cm);
   Serial.println("Return Process Complete");
@@ -449,15 +425,6 @@ void CardforReturn() //under void loop
   // Use DumpInfo (File > Examples > MFRC522 > DumpInfo) to get this infomation
   if (content.substring(1) == targetUID)
   {
-    digitalWrite(actLedPin, HIGH); //on led
-    // Set off a short tone and an LED to signal a sucessful activation/deactivation:
-    tone(buzzPin, 500); //on
-    delay(50);
-    noTone(buzzPin); //off
-    delay(50);
-    tone(buzzPin, 500); //on
-    delay(50);
-    noTone(buzzPin);    //off
     Serial1.write('g'); // send 'g' to touchscreen to display insert powerbank message
     SenReturn();
   }
@@ -499,6 +466,11 @@ void SenReturn()
 //  // This ensures that the sensor is pulsing fast enough to detect fast-moving objects
 //  // but still slow enough for the RFID Reader to check if a tag/card has been presented:
 //  delay(100);
+
+  digitalWrite(compartmentOne, LOW);
+   delay(1000);
+   digitalWrite(compartmentOne, HIGH);
+   delay(1000);
 
 Serial.write('f');
 delay(100);
@@ -583,8 +555,11 @@ void bms()
   unsigned long currentMilli = millis();
   if (currentMilli - bmsDelay > 1000)
   {
+    lcd.clear();
+    Serial.println("R");
     voltage = readVoltage();
-    voltage = voltage/1000;
+//    voltage = voltage/1000;
+    Serial.println(voltage);
      current= (voltage -2.5)/0.185;
      lcd.setCursor(10,1);
      lcd.print(voltage);
@@ -597,7 +572,6 @@ void bms()
      lcd.print(battery_voltage);
      lcd.print("%");
      bmsDelay = currentMilli;
-     lcd.clear();
      }
      else if (voltage<=11.31)
      {
@@ -606,7 +580,7 @@ void bms()
      lcd.print(battery_voltage);
      lcd.print("%");
      bmsDelay = currentMilli;
-     lcd.clear();
+     
      }
       else if (voltage<=11.58)
      {
@@ -615,7 +589,7 @@ void bms()
      lcd.print(battery_voltage);
      lcd.print("%");
      bmsDelay = currentMilli;
-     lcd.clear();
+     
      }
       else if (voltage<=11.75)
      {
@@ -624,7 +598,7 @@ void bms()
      lcd.print(battery_voltage);
      lcd.print("%");
      bmsDelay = currentMilli;
-     lcd.clear();
+     
      }
       else if (voltage<=11.9)
      {
@@ -633,7 +607,7 @@ void bms()
      lcd.print(battery_voltage);
      lcd.print("%");
      bmsDelay = currentMilli;
-     lcd.clear();
+    
      }
       else if (voltage<=12.06)
      {
@@ -642,7 +616,7 @@ void bms()
      lcd.print(battery_voltage);
      lcd.print("%");
      bmsDelay = currentMilli;
-     lcd.clear();
+    
      }
       else if (voltage<=12.2)
      {
@@ -651,7 +625,7 @@ void bms()
      lcd.print(battery_voltage);
      lcd.print("%");
      bmsDelay = currentMilli;
-     lcd.clear();
+     
      }
       else if (voltage<=12.32)
      {
@@ -660,7 +634,7 @@ void bms()
      lcd.print(battery_voltage);
      lcd.print("%");
      bmsDelay = currentMilli;
-     lcd.clear();
+     
      }
       else if (voltage<=12.42)
      {
@@ -669,7 +643,7 @@ void bms()
      lcd.print(battery_voltage);
      lcd.print("%");
      bmsDelay = currentMilli;
-     lcd.clear();
+ 
      }
       else if (voltage<=12.5)
      {
@@ -678,7 +652,7 @@ void bms()
      lcd.print(battery_voltage);
      lcd.print("%");
      bmsDelay = currentMilli;
-     lcd.clear();
+
      }
      else if (voltage<=12.6)
      {
@@ -687,7 +661,7 @@ void bms()
      lcd.print(battery_voltage);
      lcd.print("%");
      bmsDelay = currentMilli;
-     lcd.clear();
+
      }
      else if (voltage>=12.6)
      {
@@ -696,9 +670,9 @@ void bms()
      lcd.print(battery_voltage);
      lcd.print("%");
      bmsDelay = currentMilli;
-     lcd.clear();
+
      }
-      else if (battery_voltage<50)
+    if (battery_voltage<50)
         {
       digitalWrite(bmsRelay, LOW);
         relayState = HIGH;
